@@ -1,3 +1,5 @@
+'use client'
+
 import React, { useState } from 'react';
 import yaml from 'js-yaml'
 
@@ -35,23 +37,52 @@ export default function GitLabCIAnalyzer() {
       // Extract stages and jobs by stage
       const definedStages = parsedYaml.stages || []
       const jobsByStage = {}
-      const jobsWithOnly = []
-      const jobsWithRules = []
+      const stagesWithOnly = {}
+      const uniqueOnlyConditions = {}
+      let vaultPresent = false
+      let jarSigningPresent = false
+      let garaSigningPresent = false
+
+      const checkForKeywords = (obj) => {
+        if (typeof obj !== 'object' || obj === null) return;
+        
+        Object.entries(obj).forEach(([key, value]) => {
+          if (key.toLowerCase().includes('vault')) vaultPresent = true;
+          if (key.toLowerCase().includes('jar') && key.toLowerCase().includes('sign')) jarSigningPresent = true;
+          if (key.toLowerCase().includes('gara') && key.toLowerCase().includes('sign')) garaSigningPresent = true;
+          
+          if (typeof value === 'object') checkForKeywords(value);
+        });
+      }
 
       jobs.forEach(job => {
         const jobConfig = parsedYaml[job]
+        checkForKeywords(jobConfig)
+        
         const stage = jobConfig.stage || 'test' // 'test' is the default stage in GitLab CI
         if (!jobsByStage[stage]) {
           jobsByStage[stage] = []
         }
         jobsByStage[stage].push(job)
 
-        // Check for 'only' and 'rules' conditions
+        // Check for 'only' condition
         if (jobConfig.only) {
-          jobsWithOnly.push({ job, conditions: jobConfig.only })
-        }
-        if (jobConfig.rules) {
-          jobsWithRules.push({ job, conditions: jobConfig.rules })
+          if (!stagesWithOnly[stage]) {
+            stagesWithOnly[stage] = []
+          }
+          const onlyConditions = Array.isArray(jobConfig.only) ? jobConfig.only : [jobConfig.only]
+          stagesWithOnly[stage].push({
+            name: job,
+            only: onlyConditions
+          })
+
+          // Count unique 'only' conditions
+          onlyConditions.forEach(condition => {
+            if (!uniqueOnlyConditions[condition]) {
+              uniqueOnlyConditions[condition] = 0
+            }
+            uniqueOnlyConditions[condition]++
+          })
         }
       })
 
@@ -62,8 +93,11 @@ export default function GitLabCIAnalyzer() {
         reservedKeywords: reservedKeys,
         stages: definedStages,
         jobsByStage: jobsByStage,
-        jobsWithOnly: jobsWithOnly,
-        jobsWithRules: jobsWithRules
+        stagesWithOnly: stagesWithOnly,
+        uniqueOnlyConditions: uniqueOnlyConditions,
+        vaultPresent,
+        jarSigningPresent,
+        garaSigningPresent
       })
       setError(null)
     } catch (error) {
@@ -117,6 +151,15 @@ export default function GitLabCIAnalyzer() {
                     {analysis.stages.map((stage) => (
                       <li key={stage} className="text-gray-800">
                         {stage}: {analysis.jobsByStage[stage]?.length || 0} job(s)
+                        {analysis.stagesWithOnly[stage] && (
+                          <ul className="list-circle pl-5 mt-2">
+                            {analysis.stagesWithOnly[stage].map((job, index) => (
+                              <li key={index} className="text-gray-600 text-sm">
+                                {job.name} (only: {job.only.join(', ')})
+                              </li>
+                            ))}
+                          </ul>
+                        )}
                       </li>
                     ))}
                   </ul>
@@ -124,11 +167,11 @@ export default function GitLabCIAnalyzer() {
               </div>
               <div className="md:col-span-2">
                 <div className="bg-gray-50 rounded-lg p-4 shadow">
-                  <p className="text-lg font-semibold text-gray-700 mb-2">Jobs with 'only' conditions:</p>
+                  <p className="text-lg font-semibold text-gray-700 mb-2">Unique 'only' conditions and their count:</p>
                   <ul className="list-disc pl-5">
-                    {analysis.jobsWithOnly.map(({ job, conditions }) => (
-                      <li key={job} className="text-gray-800">
-                        <span className="font-medium">{job}:</span> {JSON.stringify(conditions)}
+                    {Object.entries(analysis.uniqueOnlyConditions).map(([condition, count]) => (
+                      <li key={condition} className="text-gray-800">
+                        {condition}: {count} occurrence(s)
                       </li>
                     ))}
                   </ul>
@@ -136,13 +179,17 @@ export default function GitLabCIAnalyzer() {
               </div>
               <div className="md:col-span-2">
                 <div className="bg-gray-50 rounded-lg p-4 shadow">
-                  <p className="text-lg font-semibold text-gray-700 mb-2">Jobs with 'rules' conditions:</p>
+                  <p className="text-lg font-semibold text-gray-700 mb-2">Additional Checks:</p>
                   <ul className="list-disc pl-5">
-                    {analysis.jobsWithRules.map(({ job, conditions }) => (
-                      <li key={job} className="text-gray-800">
-                        <span className="font-medium">{job}:</span> {JSON.stringify(conditions)}
-                      </li>
-                    ))}
+                    <li className="text-gray-800">
+                      Vault: {analysis.vaultPresent ? 'Present' : 'Not Present'}
+                    </li>
+                    <li className="text-gray-800">
+                      JAR Signing: {analysis.jarSigningPresent ? 'Present' : 'Not Present'}
+                    </li>
+                    <li className="text-gray-800">
+                      Gara Signing: {analysis.garaSigningPresent ? 'Present' : 'Not Present'}
+                    </li>
                   </ul>
                 </div>
               </div>
