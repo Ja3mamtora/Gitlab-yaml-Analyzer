@@ -48,8 +48,8 @@ export default function GitLabCIAnalyzer() {
         
         Object.entries(obj).forEach(([key, value]) => {
           if (key.toLowerCase().includes('vault')) vaultPresent = true;
-          if (key.toLowerCase().includes('jar') && key.toLowerCase().includes('sign')) jarSigningPresent = true;
-          if (key.toLowerCase().includes('gara') && key.toLowerCase().includes('sign')) garaSigningPresent = true;
+          if (key.toLowerCase().includes('signing')) jarSigningPresent = true;
+          if (key.toLowerCase().includes('gara') || key.toLowerCase().includes('garasign')) garaSigningPresent = true;
           
           if (typeof value === 'object') checkForKeywords(value);
         });
