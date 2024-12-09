@@ -1,4 +1,6 @@
-import  React, { useState } from 'react';
+'use client'
+
+import React, { useState } from 'react';
 import yaml from 'js-yaml'
 
 const RESERVED_KEYWORDS = [
@@ -32,11 +34,25 @@ export default function GitLabCIAnalyzer() {
       const reservedKeys = topKeys.filter(key => RESERVED_KEYWORDS.includes(key))
       const jobs = topKeys.filter(key => !RESERVED_KEYWORDS.includes(key))
 
+      // Extract stages and jobs by stage
+      const definedStages = parsedYaml.stages || []
+      const jobsByStage = {}
+
+      jobs.forEach(job => {
+        const stage = parsedYaml[job].stage || 'test' // 'test' is the default stage in GitLab CI
+        if (!jobsByStage[stage]) {
+          jobsByStage[stage] = []
+        }
+        jobsByStage[stage].push(job)
+      })
+
       setAnalysis({
         jobCount: jobs.length,
         reservedKeywordCount: reservedKeys.length,
         jobs: jobs,
-        reservedKeywords: reservedKeys
+        reservedKeywords: reservedKeys,
+        stages: definedStages,
+        jobsByStage: jobsByStage
       })
       setError(null)
     } catch (error) {
@@ -82,6 +98,18 @@ export default function GitLabCIAnalyzer() {
               <div className="bg-green-50 rounded-lg p-4 shadow">
                 <p className="text-lg font-semibold text-green-700 mb-2">Reserved Keywords</p>
                 <p className="text-3xl font-bold text-green-900">{analysis.reservedKeywordCount}</p>
+              </div>
+              <div className="md:col-span-2">
+                <div className="bg-gray-50 rounded-lg p-4 shadow">
+                  <p className="text-lg font-semibold text-gray-700 mb-2">Stages and their sub-stages (jobs):</p>
+                  <ul className="list-disc pl-5">
+                    {analysis.stages.map((stage) => (
+                      <li key={stage} className="text-gray-800">
+                        {stage}: {analysis.jobsByStage[stage]?.length || 0} job(s)
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               </div>
               <div className="md:col-span-2">
                 <div className="bg-gray-50 rounded-lg p-4 shadow">
