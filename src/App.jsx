@@ -1,5 +1,3 @@
-'use client'
-
 import React, { useState } from 'react';
 import yaml from 'js-yaml'
 
@@ -37,13 +35,24 @@ export default function GitLabCIAnalyzer() {
       // Extract stages and jobs by stage
       const definedStages = parsedYaml.stages || []
       const jobsByStage = {}
+      const jobsWithOnly = []
+      const jobsWithRules = []
 
       jobs.forEach(job => {
-        const stage = parsedYaml[job].stage || 'test' // 'test' is the default stage in GitLab CI
+        const jobConfig = parsedYaml[job]
+        const stage = jobConfig.stage || 'test' // 'test' is the default stage in GitLab CI
         if (!jobsByStage[stage]) {
           jobsByStage[stage] = []
         }
         jobsByStage[stage].push(job)
+
+        // Check for 'only' and 'rules' conditions
+        if (jobConfig.only) {
+          jobsWithOnly.push({ job, conditions: jobConfig.only })
+        }
+        if (jobConfig.rules) {
+          jobsWithRules.push({ job, conditions: jobConfig.rules })
+        }
       })
 
       setAnalysis({
@@ -52,7 +61,9 @@ export default function GitLabCIAnalyzer() {
         jobs: jobs,
         reservedKeywords: reservedKeys,
         stages: definedStages,
-        jobsByStage: jobsByStage
+        jobsByStage: jobsByStage,
+        jobsWithOnly: jobsWithOnly,
+        jobsWithRules: jobsWithRules
       })
       setError(null)
     } catch (error) {
@@ -106,6 +117,30 @@ export default function GitLabCIAnalyzer() {
                     {analysis.stages.map((stage) => (
                       <li key={stage} className="text-gray-800">
                         {stage}: {analysis.jobsByStage[stage]?.length || 0} job(s)
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+              <div className="md:col-span-2">
+                <div className="bg-gray-50 rounded-lg p-4 shadow">
+                  <p className="text-lg font-semibold text-gray-700 mb-2">Jobs with 'only' conditions:</p>
+                  <ul className="list-disc pl-5">
+                    {analysis.jobsWithOnly.map(({ job, conditions }) => (
+                      <li key={job} className="text-gray-800">
+                        <span className="font-medium">{job}:</span> {JSON.stringify(conditions)}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+              <div className="md:col-span-2">
+                <div className="bg-gray-50 rounded-lg p-4 shadow">
+                  <p className="text-lg font-semibold text-gray-700 mb-2">Jobs with 'rules' conditions:</p>
+                  <ul className="list-disc pl-5">
+                    {analysis.jobsWithRules.map(({ job, conditions }) => (
+                      <li key={job} className="text-gray-800">
+                        <span className="font-medium">{job}:</span> {JSON.stringify(conditions)}
                       </li>
                     ))}
                   </ul>
